@@ -1,3 +1,4 @@
+[中文版](README_CN.md)
 # Hardware Abstraction Layer (HAL) Library
 
 ## Overview
