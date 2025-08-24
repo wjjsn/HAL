@@ -2,6 +2,7 @@
 
 #ifdef __cplusplus
 #include <stdint.h>
+#include "hal.hpp"
 
 #ifdef STM32F1
 #include "stm32f1xx_hal_gpio.h"
