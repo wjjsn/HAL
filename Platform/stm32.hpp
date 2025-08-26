@@ -112,6 +112,26 @@ namespace HAL
 				return TIMtype::get_autoreload();
 			}
 		};
+		template <I2C_HandleTypeDef *hi2c, uint8_t salve_address>
+		struct I2C_device_7bits
+		{
+			static void transmit(uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			{
+				HAL_I2C_Master_Transmit(hi2c, salve_address, pData, Size, Timeout);
+			}
+			static void receive(uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			{
+				HAL_I2C_Master_Receive(hi2c, salve_address, pData, Size, Timeout);
+			}
+			static void mem_write(uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			{
+				HAL_I2C_Mem_Write(hi2c, salve_address, MemAddress, MemAddSize, *pData, Size, Timeout);
+			}
+			static void mem_read(uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			{
+				HAL_I2C_Mem_Read(hi2c, salve_address, MemAddress, MemAddSize, *pData, Size, Timeout);
+			}
+		};
 	}
 }
 #endif
