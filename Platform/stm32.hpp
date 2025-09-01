@@ -5,8 +5,8 @@
 #include "hal.hpp"
 
 #ifdef STM32F1
-#include "stm32f1xx_hal_gpio.h"
-#include "stm32f1xx_hal_tim.h"
+#include "stm32f1xx.h"
+#include "stm32f1xx_hal.h"
 #endif // STM32F1
 namespace HAL
 {
@@ -115,6 +115,11 @@ namespace HAL
 		template <I2C_HandleTypeDef *hi2c, uint8_t salve_address>
 		struct I2C_device_7bits
 		{
+			enum I2C_MEM_SIZE_T
+			{
+				MEMADD_SIZE_8BIT,
+				MEMADD_SIZE_16BIT
+			};
 			static void transmit(uint8_t *pData, uint16_t Size, uint32_t Timeout)
 			{
 				HAL_I2C_Master_Transmit(hi2c, salve_address, pData, Size, Timeout);
@@ -123,13 +128,13 @@ namespace HAL
 			{
 				HAL_I2C_Master_Receive(hi2c, salve_address, pData, Size, Timeout);
 			}
-			static void mem_write(uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			static void mem_write(uint16_t MemAddress, I2C_MEM_SIZE_T MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
 			{
-				HAL_I2C_Mem_Write(hi2c, salve_address, MemAddress, MemAddSize, *pData, Size, Timeout);
+				HAL_I2C_Mem_Write(hi2c, salve_address, MemAddress, MemAddSize, pData, Size, Timeout);
 			}
-			static void mem_read(uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			static void mem_read(uint16_t MemAddress, I2C_MEM_SIZE_T MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
 			{
-				HAL_I2C_Mem_Read(hi2c, salve_address, MemAddress, MemAddSize, *pData, Size, Timeout);
+				HAL_I2C_Mem_Read(hi2c, salve_address, MemAddress, MemAddSize, pData, Size, Timeout);
 			}
 		};
 	}
