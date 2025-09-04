@@ -1,12 +1,15 @@
 #pragma once
 
+
 #ifdef __cplusplus
-#include <stdint.h>
+#include <cstdint>
+
 #include "hal.hpp"
 
 #ifdef STM32F1
 #include "stm32f1xx.h"
 #include "stm32f1xx_hal.h"
+#include "stm32f1xx_ll_usart.h"
 #endif // STM32F1
 namespace HAL
 {
@@ -135,6 +138,27 @@ namespace HAL
 			static void mem_read(uint16_t MemAddress, I2C_MEM_SIZE_T MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
 			{
 				HAL_I2C_Mem_Read(hi2c, salve_address, MemAddress, MemAddSize, pData, Size, Timeout);
+			}
+		};
+		template <UART_HandleTypeDef *huart>
+		struct UART
+		{
+			static void transmit(const uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			{
+				HAL_UART_Transmit(huart, pData, Size, Timeout);
+			}
+		};
+		template <std::uint32_t USARTx>
+		struct UART_LL
+		{
+			static void transmit(const uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			{
+				(void)Timeout;
+				for (uint16_t i = 0; i < Size; ++i)
+				{
+					LL_USART_TransmitData8((USART_TypeDef *)USARTx, *(pData + i));
+					while (!(LL_USART_IsActiveFlag_TXE((USART_TypeDef *)USARTx)));
+				}
 			}
 		};
 	}
