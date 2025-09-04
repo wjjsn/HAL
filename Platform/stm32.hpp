@@ -4,11 +4,10 @@
 #ifdef __cplusplus
 #include <cstdint>
 
-#include "hal.hpp"
+#include "../hal.hpp"
 
 #ifdef STM32F1
 #include "stm32f1xx.h"
-#include "stm32f1xx_hal.h"
 #include "stm32f1xx_ll_usart.h"
 #endif // STM32F1
 namespace HAL
@@ -39,7 +38,7 @@ namespace HAL
 				return (bool)HAL_GPIO_ReadPin((GPIO_TypeDef *)GPIOx, GPIO_Pin);
 			}
 		};
-
+#ifdef HAL_TIM_MODULE_ENABLED
 		template <TIM_HandleTypeDef *htim, uint32_t clock_frequency>
 		struct TIM
 		{
@@ -115,6 +114,8 @@ namespace HAL
 				return TIMtype::get_autoreload();
 			}
 		};
+#endif // HAL_TIM_MODULE_ENABLED
+#ifdef HAL_I2C_MODULE_ENABLED
 		template <I2C_HandleTypeDef *hi2c, uint8_t salve_address>
 		struct I2C_device_7bits
 		{
@@ -140,6 +141,8 @@ namespace HAL
 				HAL_I2C_Mem_Read(hi2c, salve_address, MemAddress, MemAddSize, pData, Size, Timeout);
 			}
 		};
+#endif // HAL_I2C_MODULE_ENABLED
+#ifdef HAL_UART_MODULE_ENABLED
 		template <UART_HandleTypeDef *huart>
 		struct UART
 		{
@@ -148,6 +151,7 @@ namespace HAL
 				HAL_UART_Transmit(huart, pData, Size, Timeout);
 			}
 		};
+#endif
 		template <std::uint32_t USARTx>
 		struct UART_LL
 		{
