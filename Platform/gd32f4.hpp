@@ -200,7 +200,7 @@ namespace HAL
 			}
 		};
 
-		template <typename GPIO_SDA, typename GPIO_SCL, uint32_t I2Cx, uint32_t clkspeed, uint8_t slave_address>
+		template <typename GPIO_SDA, typename GPIO_SCL, uint32_t I2Cx, uint32_t clkspeed, uint8_t slave_address, uint8_t own_address7 = 0x00>
 			requires(
 				GPIO_SDA::af_config::af_num == GPIO_AF_4 &&
 				GPIO_SCL::af_config::af_num == GPIO_AF_4)
@@ -214,6 +214,7 @@ namespace HAL
 				rcu_periph_clock_enable(RCU_periph<I2Cx>::periph);
 
 				i2c_clock_config(I2Cx, clkspeed, I2C_DTCY_2);
+				i2c_mode_addr_config(I2Cx, I2C_I2CMODE_ENABLE, I2C_ADDFORMAT_7BITS, own_address7);
 				i2c_enable(I2Cx);
 				i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 			}
@@ -374,6 +375,7 @@ namespace HAL
 
 				rcu_periph_clock_enable(RCU_periph<USARTx>::periph);
 
+				usart_deinit(USARTx);
 				usart_baudrate_set(USARTx, baudval);
 				usart_parity_config(USARTx, paritycfg);
 				usart_word_length_set(USARTx, wlen);
@@ -402,7 +404,8 @@ namespace HAL
 		};
 
 		template <typename GPIO_MOSI, typename GPIO_MISO, typename GPIO_SCLK, uint32_t SPIx,
-				  uint32_t prescaler = SPI_PSC_64>
+				  uint32_t prescaler = SPI_PSC_64, uint32_t clock_polarity_phase = SPI_CK_PL_LOW_PH_2EDGE,
+				  uint32_t device_mode = SPI_MASTER, uint32_t nss = SPI_NSS_SOFT>
 			requires(
 				GPIO_MOSI::af_config::af_num == GPIO_AF_5 &&
 				GPIO_MISO::af_config::af_num == GPIO_AF_5 &&
@@ -418,12 +421,12 @@ namespace HAL
 				rcu_periph_clock_enable(RCU_periph<SPIx>::periph);
 
 				spi_parameter_struct spi_init_struct = {
-					SPI_MASTER,
+					device_mode,
 					SPI_TRANSMODE_FULLDUPLEX,
 					SPI_FRAMESIZE_8BIT,
-					SPI_NSS_SOFT,
+					nss,
 					SPI_ENDIAN_MSB,
-					SPI_CK_PL_LOW_PH_1EDGE,
+					clock_polarity_phase,
 					prescaler};
 				spi_init(SPIx, &spi_init_struct);
 				spi_enable(SPIx);
@@ -462,7 +465,7 @@ namespace HAL
 			}
 		};
 
-		template <uint32_t TIMx, uint32_t clock_frequency>
+		template <uint32_t TIMx, uint32_t clock_frequency, uint32_t psc_mul = RCU_TIMER_PSC_MUL4>
 		struct TIM
 		{
 			static constexpr uint32_t tim_base = TIMx;
@@ -470,6 +473,7 @@ namespace HAL
 			static void init(uint16_t prescaler, uint32_t autoreload)
 			{
 				rcu_periph_clock_enable(RCU_periph<TIMx>::periph);
+				rcu_timer_clock_prescaler_config(psc_mul);
 
 				timer_parameter_struct param = {
 					prescaler,
