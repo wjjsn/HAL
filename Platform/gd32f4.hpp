@@ -353,21 +353,23 @@ namespace HAL
 		};
 
 		/**
-		* @brief  I2C主设备 (7位地址)
-		* @note   SDA/SCL必须配置为GPIO_AF_4
-		* @param  GPIO_SDA: SDA引脚 (必须是AFConfig<GPIO_AF_4>)
-		* @param  GPIO_SCL: SCL引脚 (必须是AFConfig<GPIO_AF_4>)
-		* @param  I2Cx: I2C外设 (I2C0/I2C1/I2C2)
-		* @param  clkspeed: 时钟速度 (推荐400000)
-		* @param  slave_address: 从设备7位地址 (不含读/写位)
-		* @param  own_address7: 本机7位地址 (默认0x00)
-		*/
-		template <typename GPIO_SDA, typename GPIO_SCL, uint32_t I2Cx, uint32_t clkspeed, uint8_t slave_address, uint8_t own_address7 = 0x00>
+		 * @brief  I2C总线层
+		 * @note   SDA/SCL必须配置为GPIO_AF_4
+		 * @param  GPIO_SDA: SDA引脚 (AFConfig<GPIO_AF_4>)
+		 * @param  GPIO_SCL: SCL引脚 (AFConfig<GPIO_AF_4>)
+		 * @param  I2Cx: I2C外设 (I2C0/I2C1/I2C2)
+		 * @param  clkspeed: 时钟速度 (Hz, 推荐100000/400000)
+		 * @param  own_address7: 本机7位地址 (默认0x00)
+		 * @note   transmit/receive 的 slave_addr 由调用方传入 (7-bit 地址)
+		 */
+		template <typename GPIO_SDA, typename GPIO_SCL, uint32_t I2Cx, uint32_t clkspeed, uint8_t own_address7 = 0x00>
 			requires(
 				GPIO_SDA::af_config::af_num == GPIO_AF_4 &&
 				GPIO_SCL::af_config::af_num == GPIO_AF_4)
-		struct I2C_device_7bits
+		struct I2C_bus
 		{
+			static constexpr uint32_t periph = I2Cx;
+
 			static void init()
 			{
 				GPIO_SDA::init();
@@ -381,62 +383,87 @@ namespace HAL
 				i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 			}
 
-			static void transmit(uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			static void transmit(uint8_t slave_addr, uint8_t *p, uint16_t n, uint32_t t)
 			{
-				(void)Timeout;
+				(void)t;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
-				i2c_master_addressing(I2Cx, slave_address, I2C_TRANSMITTER);
+				i2c_master_addressing(I2Cx, slave_addr, I2C_TRANSMITTER);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
-				for (uint16_t i = 0; i < Size; i++)
+				for (uint16_t i = 0; i < n; i++)
 				{
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_TBE));
-					i2c_data_transmit(I2Cx, *(pData + i));
+					i2c_data_transmit(I2Cx, *(p + i));
 				}
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_BTC));
 				i2c_stop_on_bus(I2Cx);
 				while (I2C_CTL0(I2Cx) & I2C_CTL0_STOP);
 			}
 
-			static void receive(uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			static void receive(uint8_t slave_addr, uint8_t *p, uint16_t n, uint32_t t)
 			{
-				(void)Timeout;
+				(void)t;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
-				i2c_master_addressing(I2Cx, slave_address, I2C_RECEIVER);
+				i2c_master_addressing(I2Cx, slave_addr, I2C_RECEIVER);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
-				if (Size == 1)
+				if (n == 1)
 				{
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-					*pData = i2c_data_receive(I2Cx);
+					*p = i2c_data_receive(I2Cx);
 					i2c_stop_on_bus(I2Cx);
 				}
 				else
 				{
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-					*pData = i2c_data_receive(I2Cx);
-					for (uint16_t i = 1; i < Size - 1; i++)
+					*p = i2c_data_receive(I2Cx);
+					for (uint16_t i = 1; i < n - 1; i++)
 					{
 						i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 						while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-						*(pData + i) = i2c_data_receive(I2Cx);
+						*(p + i) = i2c_data_receive(I2Cx);
 					}
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-					*(pData + Size - 1) = i2c_data_receive(I2Cx);
+					*(p + n - 1) = i2c_data_receive(I2Cx);
 					i2c_stop_on_bus(I2Cx);
 				}
 				while (I2C_CTL0(I2Cx) & I2C_CTL0_STOP);
 			}
+		};
 
-			static void mem_write(uint16_t MemAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+		/**
+		 * @brief  I2C设备层 (7-bit 地址)
+		 * @param  bus_t: I2C_bus 类型
+		 * @param  slave_address: 从设备7位地址
+		 */
+		template <typename bus_t, uint8_t slave_address>
+		struct I2C_device_addr
+		{
+			static void init()
 			{
-				(void)Timeout;
+				bus_t::init();
+			}
+
+			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				bus_t::transmit(slave_address, p, n, t);
+			}
+
+			static void receive(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				bus_t::receive(slave_address, p, n, t);
+			}
+
+			static void mem_write(uint16_t reg, uint8_t *p, uint16_t n, uint32_t t)
+			{
+				(void)t;
+				const uint32_t I2Cx = bus_t::periph;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
@@ -444,21 +471,22 @@ namespace HAL
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_TBE));
-				i2c_data_transmit(I2Cx, MemAddress);
+				i2c_data_transmit(I2Cx, reg);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_BTC));
-				for (uint16_t i = 0; i < Size; i++)
+				for (uint16_t i = 0; i < n; i++)
 				{
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_TBE));
-					i2c_data_transmit(I2Cx, *(pData + i));
+					i2c_data_transmit(I2Cx, *(p + i));
 				}
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_BTC));
 				i2c_stop_on_bus(I2Cx);
 				while (I2C_CTL0(I2Cx) & I2C_CTL0_STOP);
 			}
 
-			static void mem_read(uint16_t MemAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+			static void mem_read(uint16_t reg, uint8_t *p, uint16_t n, uint32_t t)
 			{
-				(void)Timeout;
+				(void)t;
+				const uint32_t I2Cx = bus_t::periph;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
@@ -466,7 +494,7 @@ namespace HAL
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_TBE));
-				i2c_data_transmit(I2Cx, MemAddress);
+				i2c_data_transmit(I2Cx, reg);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_BTC));
 
 				i2c_start_on_bus(I2Cx);
@@ -475,26 +503,26 @@ namespace HAL
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 
-				if (Size == 1)
+				if (n == 1)
 				{
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-					*pData = i2c_data_receive(I2Cx);
+					*p = i2c_data_receive(I2Cx);
 					i2c_stop_on_bus(I2Cx);
 				}
 				else
 				{
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-					*pData = i2c_data_receive(I2Cx);
-					for (uint16_t i = 1; i < Size - 1; i++)
+					*p = i2c_data_receive(I2Cx);
+					for (uint16_t i = 1; i < n - 1; i++)
 					{
 						i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 						while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-						*(pData + i) = i2c_data_receive(I2Cx);
+						*(p + i) = i2c_data_receive(I2Cx);
 					}
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
-					*(pData + Size - 1) = i2c_data_receive(I2Cx);
+					*(p + n - 1) = i2c_data_receive(I2Cx);
 					i2c_stop_on_bus(I2Cx);
 				}
 				while (I2C_CTL0(I2Cx) & I2C_CTL0_STOP);
@@ -621,6 +649,8 @@ namespace HAL
 				GPIO_SCLK::af_config::af_num == GPIO_AF_5)
 		struct SPI
 		{
+			static constexpr uint32_t periph = SPI_CONFIG::spi_periph;
+
 			static void init()
 			{
 				GPIO_MOSI::init();
@@ -641,36 +671,105 @@ namespace HAL
 				spi_enable(SPI_CONFIG::spi_periph);
 			}
 
-			static uint8_t send_rec_byte(uint8_t byte)
+			// 主发送 (不控 CS)
+			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
 			{
-				while (spi_i2s_flag_get(SPI_CONFIG::spi_periph, SPI_FLAG_TBE) == RESET);
-				spi_i2s_data_transmit(SPI_CONFIG::spi_periph, byte);
-				while (spi_i2s_flag_get(SPI_CONFIG::spi_periph, SPI_FLAG_RBNE) == RESET);
-				return spi_i2s_data_receive(SPI_CONFIG::spi_periph);
+				(void)t;
+				for (uint16_t i = 0; i < n; i++)
+				{
+					while (spi_i2s_flag_get(periph, SPI_FLAG_TBE) == RESET);
+					spi_i2s_data_transmit(periph, *(p + i));
+				}
+				while (spi_i2s_flag_get(periph, SPI_FLAG_TRANS) != RESET);
 			}
 
-			static void send_bytes(const uint8_t *pSend, uint16_t len)
+			// 主接收 (不控 CS)
+			static void receive(uint8_t *p, uint16_t n, uint32_t t)
 			{
-				for (uint16_t i = 0; i < len; i++)
+				(void)t;
+				for (uint16_t i = 0; i < n; i++)
 				{
-					send_rec_byte(*pSend++);
+					while (spi_i2s_flag_get(periph, SPI_FLAG_TBE) == RESET);
+					spi_i2s_data_transmit(periph, 0xFF);
+					while (spi_i2s_flag_get(periph, SPI_FLAG_RBNE) == RESET);
+					*(p + i) = spi_i2s_data_receive(periph);
 				}
 			}
 
-			static void rec_bytes(uint8_t dummy_byte, uint8_t *pRec, uint16_t len)
+			// 全双工 (不控 CS)
+			static void transfer(uint8_t *p, uint16_t n, uint32_t t)
 			{
-				for (uint16_t i = 0; i < len; i++)
+				(void)t;
+				for (uint16_t i = 0; i < n; i++)
 				{
-					*pRec++ = send_rec_byte(dummy_byte);
+					while (spi_i2s_flag_get(periph, SPI_FLAG_TBE) == RESET);
+					spi_i2s_data_transmit(periph, *(p + i));
+					while (spi_i2s_flag_get(periph, SPI_FLAG_RBNE) == RESET);
+					*(p + i) = spi_i2s_data_receive(periph);
 				}
 			}
+		};
 
-			static void send_rec_bytes(const uint8_t *pSend, uint8_t *pRec, uint16_t len)
+		/**
+		 * @brief  SPI设备层 (控 CS)
+		 * @param  bus_t: SPI 主设备类型 (SPI<...>)
+		 * @param  GPIO_CS: 片选引脚 (OutputConfig, 默认拉高)
+		 */
+		template <typename bus_t, typename GPIO_CS>
+		struct SPI_device
+		{
+			static void init()
 			{
-				for (uint16_t i = 0; i < len; i++)
-				{
-					*pRec++ = send_rec_byte(*pSend++);
-				}
+				bus_t::init();
+				GPIO_CS::init();
+				// CS 默认高 (deselect)
+				GPIO_CS::set();
+			}
+
+			static void select()
+			{
+				GPIO_CS::clear();
+			}
+
+			static void deselect()
+			{
+				GPIO_CS::set();
+			}
+
+			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				select();
+				bus_t::transmit(p, n, t);
+				deselect();
+			}
+
+			static void receive(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				select();
+				bus_t::receive(p, n, t);
+				deselect();
+			}
+
+			static void transfer(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				select();
+				bus_t::transfer(p, n, t);
+				deselect();
+			}
+
+			static void transmit_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				bus_t::transmit(p, n, t);
+			}
+
+			static void receive_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				bus_t::receive(p, n, t);
+			}
+
+			static void transfer_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				bus_t::transfer(p, n, t);
 			}
 		};
 
