@@ -822,7 +822,7 @@ namespace HAL
 				adc_routine_channel_config(ADC_CONFIG::adc_periph, 1, channel, sample_time);
 			}
 
-			static uint32_t get_value()
+			static uint16_t get_value()
 			{
 				adc_software_trigger_enable(ADC_CONFIG::adc_periph, ADC_ROUTINE_CHANNEL);
 				while (!adc_flag_get(ADC_CONFIG::adc_periph, ADC_FLAG_EOC));
@@ -923,12 +923,21 @@ namespace HAL
 			static void set_time(uint8_t year, uint8_t month, uint8_t date, uint8_t week,
 								 uint8_t hour, uint8_t minute, uint8_t second)
 			{
-				rtc_parameter_struct rtc_initpara = {
-					0x7F,	// factor_asyn: 32768Hz / (127+1) = 256Hz (for 32768Hz crystal)
-					0xFF,	// factor_syn:  32768Hz / (255+1) = 128Hz (for 32768Hz crystal)
-					year, month, date, week,
-					hour, minute, second,
-					RTC_24HOUR, RTC_PM};
+				// 字段顺序必须与 rtc_parameter_struct 完全一致:
+				//   year, month, date, day_of_week, hour, minute, second,
+				//   factor_asyn, factor_syn, am_pm, display_format
+				rtc_parameter_struct rtc_initpara;
+				rtc_initpara.year         = year;
+				rtc_initpara.month        = month;
+				rtc_initpara.date         = date;
+				rtc_initpara.day_of_week  = week;
+				rtc_initpara.hour         = hour;
+				rtc_initpara.minute       = minute;
+				rtc_initpara.second       = second;
+				rtc_initpara.factor_asyn  = 0x7F;  // 32768Hz / (127+1) = 256Hz
+				rtc_initpara.factor_syn   = 0xFF;  // 256Hz   / (255+1) = 1Hz (秒脉冲)
+				rtc_initpara.am_pm        = RTC_PM;
+				rtc_initpara.display_format = RTC_24HOUR;
 				rtc_init_mode_enter();
 				rtc_init(&rtc_initpara);
 				rtc_register_sync_wait();
