@@ -842,14 +842,18 @@ namespace HAL
 
 			static void set_channel(uint8_t channel, uint8_t sample_time = ADC_SAMPLETIME_144)
 			{
-				adc_routine_channel_config(ADC_CONFIG::adc_periph, 1, channel, sample_time);
+				// rank = 0: 写入 RSQ2[4:0] (第 0 次转换的通道号).
+				// 用户手册 14.7.10: "单次运行模式下, ADC_RSQ2寄存器的RSQ0[4:0]位规定了ADC的转换通道".
+				adc_routine_channel_config(ADC_CONFIG::adc_periph, 0, channel, sample_time);
 			}
 
 			static uint16_t get_value()
 			{
 				adc_software_trigger_enable(ADC_CONFIG::adc_periph, ADC_ROUTINE_CHANNEL);
 				while (!adc_flag_get(ADC_CONFIG::adc_periph, ADC_FLAG_EOC));
-				return adc_routine_data_read(ADC_CONFIG::adc_periph);
+				uint16_t value = adc_routine_data_read(ADC_CONFIG::adc_periph);
+				adc_flag_clear(ADC_CONFIG::adc_periph, ADC_FLAG_EOC); // 清标志, 防止下次 while 立即通过读到旧值
+				return value;
 			}
 		};
 
