@@ -237,13 +237,21 @@ namespace HAL
 		};
 
 		/**
+		* @brief  GPIO模拟模式配置参数 (无配置, 仅作 tag)
+		* @note   用于 ADC 输入 / DAC 输出引脚, 配为 GPIO_MODE_ANALOG
+		*/
+		struct AnalogConfig
+		{
+		};
+
+		/**
 		* @brief  GPIO通用输入输出
-		* @note   支持三种模式: OutputConfig(输出), AFConfig(复用功能), void(输入)
+		* @note   支持四种模式: OutputConfig(输出), AFConfig(复用功能), void(输入), AnalogConfig(模拟)
 		* @param  GPIOx: GPIO端口 (GPIOA-GPIOI)
 		* @param  Pin: GPIO引脚 (GPIO_PIN_0-GPIO_PIN_15)
 		* @param  Mode: GPIO模式 (GPIO_MODE_INPUT/GPIO_MODE_OUTPUT/GPIO_MODE_AF/GPIO_MODE_ANALOG)
 		* @param  PULL: 上下拉配置 (GPIO_PUPD_NONE/GPIO_PUPD_PULLUP/GPIO_PUPD_PULLDOWN)
-		* @param  config: OutputConfig/AFConfig/void
+		* @param  config: OutputConfig/AFConfig/AnalogConfig/void
 		*/
 		template <uint32_t GPIOx, uint16_t Pin, uint32_t Mode, uint32_t PULL, typename config>
 		struct GPIO
@@ -349,6 +357,21 @@ namespace HAL
 			static bool read()
 			{
 				return gpio_input_bit_get(GPIOx, Pin) == SET;
+			}
+		};
+
+		/**
+		* @brief  GPIO模拟模式 (用于 ADC 输入 / DAC 输出)
+		* @note   仅暴露 init(), 不提供 set/clear/toggle/read (模拟模式无意义)
+		* @param  PULL: 上下拉配置 (GPIO_PUPD_NONE/GPIO_PUPD_PULLUP/GPIO_PUPD_PULLDOWN)
+		*/
+		template <uint32_t GPIOx, uint16_t Pin, uint32_t PULL>
+		struct GPIO<GPIOx, Pin, GPIO_MODE_ANALOG, PULL, AnalogConfig>
+		{
+			static void init()
+			{
+				rcu_periph_clock_enable(RCU_periph<GPIOx>::periph);
+				gpio_mode_set(GPIOx, GPIO_MODE_ANALOG, PULL, Pin);
 			}
 		};
 
