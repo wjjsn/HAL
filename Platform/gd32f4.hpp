@@ -671,31 +671,6 @@ namespace HAL
 				spi_enable(SPI_CONFIG::spi_periph);
 			}
 
-			// 主发送 (不控 CS)
-			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
-			{
-				(void)t;
-				for (uint16_t i = 0; i < n; i++)
-				{
-					while (spi_i2s_flag_get(periph, SPI_FLAG_TBE) == RESET);
-					spi_i2s_data_transmit(periph, *(p + i));
-				}
-				while (spi_i2s_flag_get(periph, SPI_FLAG_TRANS) != RESET);
-			}
-
-			// 主接收 (不控 CS)
-			static void receive(uint8_t *p, uint16_t n, uint32_t t)
-			{
-				(void)t;
-				for (uint16_t i = 0; i < n; i++)
-				{
-					while (spi_i2s_flag_get(periph, SPI_FLAG_TBE) == RESET);
-					spi_i2s_data_transmit(periph, 0xFF);
-					while (spi_i2s_flag_get(periph, SPI_FLAG_RBNE) == RESET);
-					*(p + i) = spi_i2s_data_receive(periph);
-				}
-			}
-
 			// 全双工 (不控 CS)
 			static void transfer(uint8_t *p, uint16_t n, uint32_t t)
 			{
@@ -706,6 +681,31 @@ namespace HAL
 					spi_i2s_data_transmit(periph, *(p + i));
 					while (spi_i2s_flag_get(periph, SPI_FLAG_RBNE) == RESET);
 					*(p + i) = spi_i2s_data_receive(periph);
+				}
+			}
+
+			// 主发送 (不控 CS): 委托给 transfer, 逐字节发送并丢弃 RX (与 C 版 spi_send_rec_byte 一致)
+			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				for (uint16_t i = 0; i < n; i++)
+				{
+					uint8_t tx = p[i];
+					uint8_t rx;
+					uint8_t buf[1] = {tx};
+					transfer(buf, 1, t);
+					rx = buf[0];
+					(void)rx; // 故意消费 RX, 防止 FIFO 满
+				}
+			}
+
+			// 主接收 (不控 CS): 委托给 transfer, 用 0xFF 作 dummy 逐字节收
+			static void receive(uint8_t *p, uint16_t n, uint32_t t)
+			{
+				for (uint16_t i = 0; i < n; i++)
+				{
+					uint8_t buf[1] = {0xFF};
+					transfer(buf, 1, t);
+					p[i] = buf[0];
 				}
 			}
 		};
@@ -736,38 +736,38 @@ namespace HAL
 				GPIO_CS::set();
 			}
 
-			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
+			static void transmit(uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				select();
 				bus_t::transmit(p, n, t);
 				deselect();
 			}
 
-			static void receive(uint8_t *p, uint16_t n, uint32_t t)
+			static void receive(uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				select();
 				bus_t::receive(p, n, t);
 				deselect();
 			}
 
-			static void transfer(uint8_t *p, uint16_t n, uint32_t t)
+			static void transfer(uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				select();
 				bus_t::transfer(p, n, t);
 				deselect();
 			}
 
-			static void transmit_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t)
+			static void transmit_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				bus_t::transmit(p, n, t);
 			}
 
-			static void receive_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t)
+			static void receive_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				bus_t::receive(p, n, t);
 			}
 
-			static void transfer_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t)
+			static void transfer_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				bus_t::transfer(p, n, t);
 			}
