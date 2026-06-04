@@ -397,7 +397,7 @@ namespace HAL
 			{
 				GPIO_SDA::init();
 				GPIO_SCL::init();
-
+				i2c_deinit(periph);
 				rcu_periph_clock_enable(RCU_periph<I2Cx>::periph);
 
 				i2c_clock_config(I2Cx, clkspeed, I2C_DTCY_2);
@@ -537,14 +537,14 @@ namespace HAL
 				{
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 					*p = i2c_data_receive(I2Cx);
+					i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 					for (uint16_t i = 1; i < n - 1; i++)
 					{
-						i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 						while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 						*(p + i) = i2c_data_receive(I2Cx);
 					}
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
-					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
+					// while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 					*(p + n - 1) = i2c_data_receive(I2Cx);
 					i2c_stop_on_bus(I2Cx);
 				}
