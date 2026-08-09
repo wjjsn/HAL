@@ -9,7 +9,7 @@
 ## 功能特性
 - GPIO操作(置位、清零、翻转、读取)
 - 定时器控制(预分频、自动重装载、计数器)
-- PWM生成(频率、占空比控制)
+- PWM生成(编译期频率、占空比控制)
 - 编译时类型检查和优化
 - 跨平台的统一接口
 
@@ -36,13 +36,17 @@ bool state = BUTTON::read(); // 读取按钮状态
 ### PWM生成
 ```cpp
 // 用于MSPM0
+using MyTimer = HAL::mspm0::TIM<TIMER_BASE, 32000000, TimerConfig>;
 using MyPWM = HAL::mspm0::PWM<MyTimer, DL_TIMER_CC_INDEX_0, 1000>;
 MyPWM::init(); // 以1kHz频率初始化
 MyPWM::set_compare(500); // 设置50%占空比
+MyPWM::start();
 
 // 用于STM32
+using ServoTimer = HAL::stm32::TIM<&htim1, 72000000>;
 using ServoPWM = HAL::stm32::PWM<ServoTimer, TIM_CHANNEL_1, 50>;
 ServoPWM::init(); // 以50Hz频率初始化
+ServoPWM::start();
 ```
 
 ## 依赖项

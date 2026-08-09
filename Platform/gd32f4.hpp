@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef __cplusplus
-#include <cstdint>
+#include <stdint.h>
 #include <concepts>
 #include <cmath>
 extern "C"
@@ -406,13 +406,14 @@ namespace HAL
 				i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 			}
 
-			static void transmit(uint8_t slave_addr, uint8_t *p, uint16_t n, uint32_t t)
+			static void transmit(uint8_t slave_addr, const uint8_t *p, uint16_t n, uint32_t t)
 			{
 				(void)t;
+				if (n == 0U) return;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
-				i2c_master_addressing(I2Cx, slave_addr, I2C_TRANSMITTER);
+				i2c_master_addressing(I2Cx, static_cast<uint8_t>(slave_addr << 1U), I2C_TRANSMITTER);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 				for (uint16_t i = 0; i < n; i++)
@@ -428,21 +429,23 @@ namespace HAL
 			static void receive(uint8_t slave_addr, uint8_t *p, uint16_t n, uint32_t t)
 			{
 				(void)t;
+				if (n == 0U) return;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
-				i2c_master_addressing(I2Cx, slave_addr, I2C_RECEIVER);
+				i2c_master_addressing(I2Cx, static_cast<uint8_t>(slave_addr << 1U), I2C_RECEIVER);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
-				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 				if (n == 1)
 				{
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
+					i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
+					i2c_stop_on_bus(I2Cx);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 					*p = i2c_data_receive(I2Cx);
-					i2c_stop_on_bus(I2Cx);
 				}
 				else
 				{
+					i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 					*p = i2c_data_receive(I2Cx);
 					for (uint16_t i = 1; i < n - 1; i++)
@@ -457,6 +460,7 @@ namespace HAL
 					i2c_stop_on_bus(I2Cx);
 				}
 				while (I2C_CTL0(I2Cx) & I2C_CTL0_STOP);
+				i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 			}
 		};
 
@@ -466,14 +470,15 @@ namespace HAL
 		 * @param  slave_address: 从设备7位地址
 		 */
 		template <typename bus_t, uint8_t slave_address>
-		struct I2C_device_addr
+		struct I2C_device
 		{
+			static_assert(slave_address < 0x80, "I2C address must be 7-bit");
 			static void init()
 			{
 				bus_t::init();
 			}
 
-			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
+			static void transmit(const uint8_t *p, uint16_t n, uint32_t t)
 			{
 				bus_t::transmit(slave_address, p, n, t);
 			}
@@ -483,14 +488,14 @@ namespace HAL
 				bus_t::receive(slave_address, p, n, t);
 			}
 
-			static void mem_write(uint16_t reg, uint8_t *p, uint16_t n, uint32_t t)
+			static void mem_write(uint16_t reg, const uint8_t *p, uint16_t n, uint32_t t)
 			{
 				(void)t;
 				const uint32_t I2Cx = bus_t::periph;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
-				i2c_master_addressing(I2Cx, slave_address, I2C_TRANSMITTER);
+				i2c_master_addressing(I2Cx, static_cast<uint8_t>(slave_address << 1U), I2C_TRANSMITTER);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_TBE));
@@ -509,11 +514,12 @@ namespace HAL
 			static void mem_read(uint16_t reg, uint8_t *p, uint16_t n, uint32_t t)
 			{
 				(void)t;
+				if (n == 0U) return;
 				const uint32_t I2Cx = bus_t::periph;
 				while (i2c_flag_get(I2Cx, I2C_FLAG_I2CBSY));
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
-				i2c_master_addressing(I2Cx, slave_address, I2C_TRANSMITTER);
+				i2c_master_addressing(I2Cx, static_cast<uint8_t>(slave_address << 1U), I2C_TRANSMITTER);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
 				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_TBE));
@@ -522,19 +528,20 @@ namespace HAL
 
 				i2c_start_on_bus(I2Cx);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_SBSEND));
-				i2c_master_addressing(I2Cx, slave_address, I2C_RECEIVER);
+				i2c_master_addressing(I2Cx, static_cast<uint8_t>(slave_address << 1U), I2C_RECEIVER);
 				while (!i2c_flag_get(I2Cx, I2C_FLAG_ADDSEND));
-				i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 
 				if (n == 1)
 				{
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
+					i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
+					i2c_stop_on_bus(I2Cx);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 					*p = i2c_data_receive(I2Cx);
-					i2c_stop_on_bus(I2Cx);
 				}
 				else
 				{
+					i2c_flag_clear(I2Cx, I2C_FLAG_ADDSEND);
 					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 					*p = i2c_data_receive(I2Cx);
 					i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
@@ -544,11 +551,12 @@ namespace HAL
 						*(p + i) = i2c_data_receive(I2Cx);
 					}
 					i2c_ack_config(I2Cx, I2C_ACK_DISABLE);
-					// while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
+					while (!i2c_flag_get(I2Cx, I2C_FLAG_RBNE));
 					*(p + n - 1) = i2c_data_receive(I2Cx);
 					i2c_stop_on_bus(I2Cx);
 				}
 				while (I2C_CTL0(I2Cx) & I2C_CTL0_STOP);
+				i2c_ack_config(I2Cx, I2C_ACK_ENABLE);
 			}
 		};
 
@@ -617,6 +625,16 @@ namespace HAL
 					usart_data_transmit(USARTx, *(pData + i));
 				}
 				while (usart_flag_get(USARTx, USART_FLAG_TC) == RESET);
+			}
+
+			static void receive(uint8_t *data, uint16_t size, uint32_t timeout = 0)
+			{
+				(void)timeout;
+				for (uint16_t i = 0; i < size; ++i)
+				{
+					while (usart_flag_get(USARTx, USART_FLAG_RBNE) == RESET);
+					data[i] = static_cast<uint8_t>(usart_data_receive(USARTx));
+				}
 			}
 
 			static void enable_it(uint8_t priority, uint8_t sub_priority)
@@ -708,7 +726,7 @@ namespace HAL
 			}
 
 			// 主发送 (不控 CS): 委托给 transfer, 逐字节发送并丢弃 RX (与 C 版 spi_send_rec_byte 一致)
-			static void transmit(uint8_t *p, uint16_t n, uint32_t t)
+			static void transmit(const uint8_t *p, uint16_t n, uint32_t t)
 			{
 				for (uint16_t i = 0; i < n; i++)
 				{
@@ -759,7 +777,7 @@ namespace HAL
 				GPIO_CS::set();
 			}
 
-			static void transmit(uint8_t *p, uint16_t n, uint32_t t = 0)
+			static void transmit(const uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				select();
 				bus_t::transmit(p, n, t);
@@ -780,7 +798,7 @@ namespace HAL
 				deselect();
 			}
 
-			static void transmit_without_ctl_select(uint8_t *p, uint16_t n, uint32_t t = 0)
+			static void transmit_without_ctl_select(const uint8_t *p, uint16_t n, uint32_t t = 0)
 			{
 				bus_t::transmit(p, n, t);
 			}
@@ -826,12 +844,13 @@ namespace HAL
 		template <typename ADC_CONFIG>
 		struct ADC
 		{
+			inline static uint32_t channel_ = 0;
 			static void init()
 			{
 				rcu_periph_clock_enable(RCU_periph<ADC_CONFIG::adc_periph>::periph);
 				adc_clock_config(ADC_CONFIG::prescaler_val);
 				adc_sync_mode_config(ADC_SYNC_MODE_INDEPENDENT);
-				adc_special_function_config(ADC_CONFIG::prescaler_val, ADC_SCAN_MODE, ENABLE);
+				adc_special_function_config(ADC_CONFIG::adc_periph, ADC_SCAN_MODE, ENABLE);
 				adc_data_alignment_config(ADC_CONFIG::adc_periph, ADC_DATAALIGN_RIGHT);
 				adc_resolution_config(ADC_CONFIG::adc_periph, ADC_CONFIG::resolution_val);
 				adc_channel_length_config(ADC_CONFIG::adc_periph, ADC_ROUTINE_CHANNEL, ADC_CONFIG::channel_num_val);
@@ -842,18 +861,35 @@ namespace HAL
 
 			static void set_channel(uint8_t channel, uint8_t sample_time = ADC_SAMPLETIME_144)
 			{
+				channel_ = channel;
 				// rank = 0: 写入 RSQ2[4:0] (第 0 次转换的通道号).
 				// 用户手册 14.7.10: "单次运行模式下, ADC_RSQ2寄存器的RSQ0[4:0]位规定了ADC的转换通道".
 				adc_routine_channel_config(ADC_CONFIG::adc_periph, 0, channel, sample_time);
 			}
 
-			static uint16_t get_value()
+			static void start()
 			{
 				adc_software_trigger_enable(ADC_CONFIG::adc_periph, ADC_ROUTINE_CHANNEL);
+			}
+
+			static void start_it()
+			{
+				adc_interrupt_flag_clear(ADC_CONFIG::adc_periph, ADC_INT_FLAG_EOC);
+				adc_interrupt_enable(ADC_CONFIG::adc_periph, ADC_INT_EOC);
+				start();
+			}
+
+			static uint32_t get_value()
+			{
 				while (!adc_flag_get(ADC_CONFIG::adc_periph, ADC_FLAG_EOC));
-				uint16_t value = adc_routine_data_read(ADC_CONFIG::adc_periph);
+				const uint32_t value = adc_routine_data_read(ADC_CONFIG::adc_periph);
 				adc_flag_clear(ADC_CONFIG::adc_periph, ADC_FLAG_EOC); // 清标志, 防止下次 while 立即通过读到旧值
 				return value;
+			}
+
+			static uint32_t get_channel()
+			{
+				return channel_;
 			}
 		};
 
@@ -870,7 +906,11 @@ namespace HAL
 		{
 			static constexpr uint16_t initial_value = 0xFFFF;
 
-			static uint16_t calculate(const uint8_t *data, uint16_t length)
+			static void init() { reset(); }
+			// This implementation is stateless; each calculation starts from initial_value.
+			static void reset() {}
+
+			static uint32_t calculate(const uint8_t *data, uint16_t length)
 			{
 				uint16_t crc = initial_value;
 				while (length--)
@@ -1044,12 +1084,14 @@ namespace HAL
 		* @param  clock_frequency: 时钟频率
 		* @param  psc_mul: 预分频倍增 (RCU_TIMER_PSC_MUL4)
 		*/
-		template <uint32_t TIMx, uint32_t clock_frequency, uint32_t psc_mul = RCU_TIMER_PSC_MUL4>
+		template <uint32_t TIMx, uint32_t clock_frequency, uint32_t prescaler = 0,
+				  uint32_t autoreload = 0xFFFFU, uint32_t psc_mul = RCU_TIMER_PSC_MUL4>
 		struct TIM
 		{
 			static constexpr uint32_t tim_base = TIMx;
+			static constexpr uint32_t clock_frequency_value = clock_frequency;
 
-			static void init(uint16_t prescaler, uint32_t autoreload)
+			static void init()
 			{
 				rcu_periph_clock_enable(RCU_periph<TIMx>::periph);
 				rcu_timer_clock_prescaler_config(psc_mul);
@@ -1062,7 +1104,6 @@ namespace HAL
 					autoreload,
 					0};
 				timer_init(TIMx, &param);
-				timer_enable(TIMx);
 			}
 
 			static uint32_t get_handle()
@@ -1077,12 +1118,30 @@ namespace HAL
 			{
 				return timer_counter_read(TIMx);
 			}
+			static uint32_t get_autoreload()
+			{
+				return TIMER_CAR(TIMx);
+			}
+			static void set_prescaler(uint32_t value)
+			{
+				timer_prescaler_config(TIMx, value, TIMER_PSC_RELOAD_NOW);
+			}
+			static void set_autoreload(uint32_t value)
+			{
+				timer_autoreload_value_config(TIMx, value);
+			}
 			static void set_counter(uint32_t counter)
 			{
 				timer_counter_value_config(TIMx, counter);
 			}
 			static void start()
 			{
+				timer_enable(TIMx);
+			}
+			static void start_it()
+			{
+				timer_interrupt_flag_clear(TIMx, TIMER_INT_FLAG_UP);
+				timer_interrupt_enable(TIMx, TIMER_INT_UP);
 				timer_enable(TIMx);
 			}
 			static void stop()
@@ -1102,9 +1161,14 @@ namespace HAL
 		{
 			static void init()
 			{
-				TIMtype::init(
-					TIMtype::get_clock_frequency() / 1000000.0f - 1,
-					1000000.0f / PWM_CONFIG::frequency_val - 1);
+				static_assert(TIMtype::clock_frequency_value >= 1000000U, "PWM timer clock must be at least 1 MHz");
+				static_assert(PWM_CONFIG::frequency_val > 0U && PWM_CONFIG::frequency_val <= 1000000U &&
+					PWM_CONFIG::frequency_val <= TIMtype::clock_frequency_value,
+					"PWM frequency must be supported by the timer clock");
+				TIMtype::init();
+				TIMtype::set_prescaler(TIMtype::get_clock_frequency() / 1000000U - 1U);
+				TIMtype::set_autoreload(1000000U / PWM_CONFIG::frequency_val - 1U);
+				TIMtype::set_counter(0);
 
 				timer_oc_parameter_struct oc_param = {
 					TIMER_CCX_ENABLE,
@@ -1117,6 +1181,10 @@ namespace HAL
 				timer_channel_output_mode_config(TIMtype::get_handle(), PWM_CONFIG::channel_val, PWM_CONFIG::mode_val);
 				timer_channel_output_shadow_config(TIMtype::get_handle(), PWM_CONFIG::channel_val, PWM_CONFIG::shadow_val);
 			}
+			static uint32_t get_autoreload()
+			{
+				return TIMtype::get_autoreload();
+			}
 
 			static void set_compare(uint32_t compare)
 			{
@@ -1126,6 +1194,7 @@ namespace HAL
 			static void start()
 			{
 				timer_channel_output_state_config(TIMtype::get_handle(), PWM_CONFIG::channel_val, TIMER_CCX_ENABLE);
+				TIMtype::start();
 			}
 
 			static void stop()

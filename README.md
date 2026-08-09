@@ -9,7 +9,7 @@ This is a C++ Hardware Abstraction Layer (HAL) library that provides unified int
 ## Features
 - GPIO operations (set, clear, toggle, read)
 - Timer control (prescaler, autoreload, counter)
-- PWM generation (frequency, duty cycle control)
+- PWM generation (compile-time frequency and duty cycle control)
 - Compile-time type checking and optimization
 - Platform-independent interface
 
@@ -36,13 +36,17 @@ bool state = BUTTON::read(); // Read button state
 ### PWM Generation
 ```cpp
 // For MSPM0
+using MyTimer = HAL::mspm0::TIM<TIMER_BASE, 32000000, TimerConfig>;
 using MyPWM = HAL::mspm0::PWM<MyTimer, DL_TIMER_CC_INDEX_0, 1000>;
 MyPWM::init(); // Initialize with 1kHz frequency
 MyPWM::set_compare(500); // Set 50% duty cycle
+MyPWM::start();
 
 // For STM32
+using ServoTimer = HAL::stm32::TIM<&htim1, 72000000>;
 using ServoPWM = HAL::stm32::PWM<ServoTimer, TIM_CHANNEL_1, 50>;
 ServoPWM::init(); // Initialize with 50Hz frequency
+ServoPWM::start();
 ```
 
 ## Dependencies
