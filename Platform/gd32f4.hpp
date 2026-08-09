@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef __cplusplus
-#include <cstdint>
+#include <stdint.h>
 #include <concepts>
 #include <cmath>
 extern "C"

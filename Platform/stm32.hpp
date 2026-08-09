@@ -2,7 +2,7 @@
 
 
 #ifdef __cplusplus
-#include <cstdint>
+#include <stdint.h>
 
 #include "../hal.hpp"
 
@@ -152,7 +152,7 @@ namespace HAL
 			}
 		};
 #endif
-		template <std::uint32_t USARTx>
+		template <uint32_t USARTx>
 		struct UART_LL
 		{
 			static void transmit(const uint8_t *pData, uint16_t Size, uint32_t Timeout)

@@ -8,6 +8,12 @@
 
 ## 核心约束
 
+### 0. 基础代码风格
+
+- 定宽整数统一包含 `<stdint.h>`，使用 `uint8_t`、`uint16_t`、`uint32_t` 等全局类型。
+- 不使用 `<cstdint>` 和 `std::uint*_t`。
+- 位操作统一使用 `BIT::SET`、`BIT::CLR`、`BIT::TGL`、`BIT::READ`；不新增位操作宏。
+
 ### 1. 文件结构约束
 
 ```
